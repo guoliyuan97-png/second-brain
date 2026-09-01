@@ -1,0 +1,145 @@
+{
+  "说明": "评估集(W6:后 4 例为语义用例——措辞与文档用词不同,考验语义召回):每例 = 问题 + 期望命中的文档(标题子串) + 回答应包含的关键词。跑分器量三个硬指标:引用命中(出处对不对)、要点覆盖(答案里有没有该有的事实词)、回答可用(有引用且自认充分)。内容质量的关键词是抽检,不是全量质检。",
+  "cases": [
+    {
+      "q": "编译型知识库和传统 RAG 有什么区别?",
+      "docMustInclude": "为什么要自己搭一个 AI 知识库",
+      "answerMustInclude": [
+        "入库"
+      ],
+      "note": "核心概念题,考摘要层+原文跨考"
+    },
+    {
+      "q": "个人知识库的存储分层应该怎么设计?",
+      "docMustInclude": "架构思维",
+      "answerMustInclude": [
+        "原料层"
+      ],
+      "note": "分层设计,doc1/doc3 都讲,期望至少命中架构思维"
+    },
+    {
+      "q": "给个人项目选技术栈时应该看哪些公开信号?",
+      "docMustInclude": "技术思维",
+      "answerMustInclude": [
+        "Star"
+      ],
+      "note": "考 doc4 的三信号"
+    },
+    {
+      "q": "Agentic Coding 的核心工作循环是什么?",
+      "docMustInclude": "Agentic Coding",
+      "answerMustInclude": [
+        "验证"
+      ],
+      "note": "考 doc5 核心结论"
+    },
+    {
+      "q": "做 AI 音乐时歌词应该怎么结构化?",
+      "docMustInclude": "结构化歌词",
+      "answerMustInclude": [
+        "副歌"
+      ],
+      "note": "考 doc9 歌词结构"
+    },
+    {
+      "q": "怎么把做好的歌做成 AI MV?",
+      "docMustInclude": "AI MV",
+      "answerMustInclude": [
+        "Remotion",
+        "MV"
+      ],
+      "note": "考 doc11 渲染管线"
+    },
+    {
+      "q": "AI Agent 的 ReAct 模式是什么?",
+      "docMustInclude": "AI Agent使用指南",
+      "answerMustInclude": [
+        "边想边做"
+      ],
+      "note": "考 URL 源 doc12 核心原理"
+    },
+    {
+      "q": "复刻别人的网站设计时要注意什么合规问题?",
+      "docMustInclude": "合规复刻",
+      "answerMustInclude": [
+        "版权",
+        "著作权",
+        "侵权",
+        "商用",
+        "授权"
+      ],
+      "note": "考 doc7 合规边界"
+    },
+    {
+      "q": "个人品牌站做完怎么部署上线?",
+      "docMustInclude": "个人品牌站",
+      "answerMustInclude": [
+        "Cloudflare"
+      ],
+      "note": "考 doc8 部署"
+    },
+    {
+      "q": "怎么做 MVP 才不会变成收藏夹?",
+      "docMustInclude": "架构思维",
+      "answerMustInclude": [
+        "场景"
+      ],
+      "note": "doc1/doc2/doc3 都讲 MVP,期望综合后仍能落到具体做法"
+    },
+    {
+      "q": "给 AI 音乐选生成引擎时要注意什么?",
+      "docMustInclude": "音乐引擎",
+      "answerMustInclude": [
+        "Suno"
+      ],
+      "note": "考 doc10 引擎对比"
+    },
+    {
+      "q": "个人站点的设计审美怎么提升?",
+      "docMustInclude": "设计与审美",
+      "answerMustInclude": [
+        "审美"
+      ],
+      "note": "考 doc6"
+    },
+    {
+      "q": "写东西没灵感的时候怎么办?",
+      "docMustInclude": [
+        "产品思维",
+        "AI 学习之路之「学会跟 AI 说话：Prompt 从入门到精通」",
+        "AI 学习之路之「Skill：让 AI 记住你常做的事」"
+      ],
+      "answerMustInclude": [
+        "日常"
+      ],
+      "note": "语义:没灵感≈从日常里找需求"
+    },
+    {
+      "q": "怎么避免 AI 帮忙干活的时候跑偏?",
+      "docMustInclude": "Agentic Coding",
+      "answerMustInclude": [
+        "验证",
+        "止损"
+      ],
+      "note": "语义:跑偏≈每步验证/止损"
+    },
+    {
+      "q": "零散的笔记怎么变成能用的知识?",
+      "docMustInclude": "为什么要自己搭",
+      "answerMustInclude": [
+        "编译",
+        "加工"
+      ],
+      "note": "语义:零散→编译型知识库核心思想"
+    },
+    {
+      "q": "学技术是不是什么都要自己写一遍?",
+      "docMustInclude": "技术思维",
+      "answerMustInclude": [
+        "现成",
+        "采购"
+      ],
+      "note": "语义:自己写 vs 技术采购员"
+    }
+  ]
+}

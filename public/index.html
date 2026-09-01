@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>second-brain · 个人知识系统</title>
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<div id="app" v-cloak>
+  <header>
+    <div class="brand">🧠 second-brain</div>
+    <div class="stats-line" v-if="stats">
+      <span v-for="r in stats.regions" :key="r.slug">{{ r.name }} {{ r.docs }} 篇</span>
+      <span class="badge" :class="{ warn: stats.inboxOpen > 0 }">待办 {{ stats.inboxOpen }}</span>
+    </div>
+    <nav>
+      <button :class="{ on: tab === 'qa' }" @click="openQa">归纳问答</button>
+      <button :class="{ on: tab === 'research' }" @click="tab = 'research'">深度研究</button>
+      <button :class="{ on: tab === 'desk' }" @click="openDesk">整理台{{ inboxCount ? ` ${inboxCount}` : '' }}</button>
+      <button :class="{ on: tab === 'docs' }" @click="tab = 'docs'">文档库</button>
+    </nav>
+  </header>
+
+  <!-- ── 归纳问答(聊天布局:对话在上滚动,输入固定在下)────────── -->
+  <main class="qa-page" v-show="tab === 'qa'">
+    <div class="qa-scroll">
+      <p v-if="askError" class="error">{{ askError }}</p>
+      <div v-if="!qaTurns.length && !asking" class="qa-empty muted">
+        还没有提问。可以直接输入,或用下方场景模板。<br>
+        回答之后可以接着追问("它怎么部署?"),会自动带上对话上下文。
+      </div>
+
+      <!-- 会话流:每轮一张卡。产品拍板:问答不询问入库 —— 回答源于库内检索,只有深度研究才问沉淀 -->
+      <div v-for="(turn, ti) in qaTurns" :key="turn.id" class="card turn-card">
+        <div class="turn-q"><span class="q-badge">问</span>{{ turn.q }}<span v-if="!turn.sufficient" class="tag-warn">材料不足</span></div>
+        <div v-for="w in turn.conflictNotes" :key="w" class="conflict">⚠ {{ w }}</div>
+        <div v-if="turn.streaming" class="muted" style="font-size:13px">{{ turn.stage }}<span class="cursor-blink">▍</span></div>
+        <div class="answer-text" @click="jumpCite($event, ti)" v-html="turn.html"></div>
+
+        <details v-if="turn.citations.length" class="cite-fold">
+          <summary>引用出处 ({{ turn.citations.length }})</summary>
+          <ol class="cites">
+            <li v-for="c in turn.citations" :key="c.n" :id="'cite-' + ti + '-' + c.n">
+              <div class="cite-head">
+                <a href="#" @click.prevent="openDocFromCite(c.docId)">《{{ c.title }}》</a>
+                <span class="cite-loc">「{{ c.headingPath || '正文' }}」</span>
+                <span v-if="c.via" class="tag" :class="{ pending: c.via === 'vector' }" style="font-size:11px">{{ c.via === 'both' ? '词面+语义' : c.via === 'vector' ? '语义' : '词面' }}</span>
+              </div>
+              <p class="cite-snippet">{{ c.snippet }}…</p>
+            </li>
+          </ol>
+        </details>
+
+        <details v-if="turn.usedDocs.length" class="used-fold">
+          <summary>参考文档(摘要层,{{ turn.usedDocs.length }})</summary>
+          <div v-for="d in turn.usedDocs" :key="d.id" class="used-doc">
+            <a href="#" @click.prevent="openDocFromCite(d.id)">《{{ d.title }}》</a>
+            <ul><li v-for="k in d.keyPoints" :key="k">{{ k }}</li></ul>
+          </div>
+        </details>
+      </div>
+    </div>
+
+    <div class="qa-input card">
+      <div class="ctx-row" v-if="qaTurns.length">
+        <span class="muted">追问中 · 自动带上前 {{ Math.min(qaTurns.length, 3) }} 轮上下文</span>
+        <button class="mini" @click="newTopic">开新话题</button>
+      </div>
+      <textarea
+        v-model="question"
+        rows="2"
+        placeholder="向知识库提问…(Ctrl+Enter 发送;回答后可直接追问,会带上对话上下文)"
+        @keydown.ctrl.enter="ask"
+      ></textarea>
+      <div class="ask-actions">
+        <div class="scene-chips">场景模板:
+          <button class="mini" @click="applyScene('compare')">选型对比</button>
+          <button class="mini" @click="applyScene('evaluate')">方案评估</button>
+        </div>
+        <label>范围
+          <select v-model="region">
+            <option value="">全库</option>
+            <option v-for="r in regions" :key="r.slug" :value="r.slug">{{ r.name }}</option>
+          </select>
+        </label>
+        <button class="primary" :disabled="asking || !question.trim()" @click="ask">
+          {{ asking ? '归纳中…' : '提问' }}
+        </button>
+      </div>
+    </div>
+  </main>
+
+  <!-- ── 深度研究 ──────────────────────────────────────────── -->
+  <main v-show="tab === 'research'">
+    <div class="card ask-box">
+      <textarea
+        v-model="researchQ"
+        rows="2"
+        placeholder="要研究的问题,例如:MCP 协议是什么?主流 AI Agent 框架怎么选?(联网搜索并生成带引用报告)"
+        @keydown.ctrl.enter="startResearch"
+      ></textarea>
+      <div class="ask-actions">
+        <label>范围
+          <select v-model="region">
+            <option value="">全库</option>
+            <option v-for="r in regions" :key="r.slug" :value="r.slug">{{ r.name }}</option>
+          </select>
+        </label>
+        <button class="primary" :disabled="researching || !researchQ.trim()" @click="startResearch">
+          {{ researching ? (jobStage || '研究中…') : '开始研究' }}
+        </button>
+      </div>
+      <p class="muted" v-if="researching">联网搜索 + 抓取 + 归纳,约 1~3 分钟;期间可切到其他页签,研究在后台继续。</p>
+    </div>
+
+    <p v-if="researchError" class="error">{{ researchError }}</p>
+
+    <template v-if="researchResult">
+      <div class="card">
+        <h2>研究报告 <span class="muted">基于 {{ researchResult.stats.usedSources }} 个来源 · 耗时 {{ Math.round(researchResult.stats.durationMs / 1000) }}s</span></h2>
+        <div class="answer-text report" @click="jumpSource" v-html="reportHtml"></div>
+        <div class="save-row" v-if="!researchSaveState">
+          <span class="save-hint">研究结果要沉淀入库吗?</span>
+          <button class="primary" @click="saveResearch(true)">报告+来源入库</button>
+          <button @click="saveResearch(false)">仅报告</button>
+          <button @click="deferResearch">稍后处理</button>
+        </div>
+        <span v-else class="save-done">{{ researchSaveState }}</span>
+      </div>
+
+      <div class="card" v-if="researchResult.sources.length">
+        <h2>来源({{ researchResult.sources.length }})</h2>
+        <ol class="cites">
+          <li v-for="s in researchResult.sources" :key="s.n" :id="'src-' + s.n">
+            <div class="cite-head">《{{ s.title }}》</div>
+            <p class="cite-url">{{ s.finalUrl }}</p>
+            <ul class="src-points"><li v-for="p in s.points" :key="p">{{ p }}</li></ul>
+          </li>
+        </ol>
+        <p v-if="researchResult.failed.length" class="muted">另有 {{ researchResult.failed.length }} 个来源抓取/解析失败,已跳过。</p>
+      </div>
+    </template>
+  </main>
+
+  <!-- ── 整理台 ────────────────────────────────────────────── -->
+  <main v-show="tab === 'desk'">>
+
+    <div class="card">
+      <h2>向量索引 <span class="muted">混合召回的语义路:问答时词面+语义双路检索(RRF 融合)</span></h2>
+      <template v-if="embStatus">
+        <p class="muted">
+          模型:{{ embStatus.provider === 'off' ? '未启用' : embStatus.provider }} · 维度 {{ embStatus.dims }} ·
+          已索引 <b>{{ embStatus.embedded }}</b> / {{ embStatus.total }} 个片段
+          <template v-if="embStatus.running"> · {{ embStatus.stage }}</template>
+        </p>
+        <div class="ib-actions">
+          <button class="primary" :disabled="embStatus.running || embStatus.provider === 'off'" @click="backfillEmbeddings">
+            {{ embStatus.embedded >= embStatus.total ? '检查补全' : '构建向量索引' }}
+          </button>
+          <span class="muted" style="font-size:13px">构建后问答检索双路并行;引用出处会标注来源路(词面/语义/混合)</span>
+        </div>
+      </template>
+      <p v-else class="muted">读取中…</p>
+    </div>
+
+    <div class="card">
+      <h2>主题编译建议</h2>
+    <div class="card">
+      <h2>主题编译建议</h2>
+      <p v-if="!topicSuggestions.length" class="muted">同主题文档 ≥3 篇时会出现编译建议(编译层:把同主题材料综合成一页可复用的结论)。</p>
+      <div v-for="s in topicSuggestions" :key="s.slug" class="inbox-item">
+        <div class="ib-head">
+          <span class="ib-type t-tag">建议编译</span>
+          <b>「{{ s.slug }}」</b>
+          <span class="muted">{{ s.docCount }} 篇文档<template v-if="s.topicId"> · 主题页已存在<template v-if="s.stale">(来了新资料,建议重编译)</template></template></span>
+        </div>
+        <div class="muted" style="font-size:13px">{{ s.docs.map(d => '《' + d.title + '》').join(' ') }}</div>
+        <div class="ib-actions">
+          <button class="primary" :disabled="s.busy" @click="compileTopic(s)">{{ s.topicId ? '重新编译' : '编译主题页' }}</button>
+          <span v-if="s.msg" class="save-done">{{ s.msg }}</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>规则层(个人画像)</h2>
+      <p class="muted">几句话描述你的技术栈、在学什么、偏好 —— 会注入问答和摘要,让回答贴合你的环境。</p>
+      <textarea v-model="rulesText" rows="3" placeholder="例:Windows 11 + VS Code;主力 Node/TypeScript;正在学 agent 开发;偏好轻量依赖、本地运行、中文"></textarea>
+      <div class="ib-actions">
+        <button class="primary" @click="saveRules">保存规则</button>
+        <span v-if="rulesMsg" class="save-done">{{ rulesMsg }}</span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>评估校准 <span class="muted">评估集随库漂移的自动检测:AI 判断建议,你拍板</span></h2>
+      <div class="ib-actions">
+        <button class="primary" :disabled="evalRunning" @click="runEvalJob">
+          {{ evalRunning ? (evalStage || '评估中…') : '跑评估并校准(约 1 分钟)' }}
+        </button>
+        <span v-if="evalSummary" class="muted">
+          上次({{ evalSummary.runAt }}):引用命中 {{ evalSummary.citationHitRate }} · 要点 {{ evalSummary.mentionedRate }} · 可用 {{ evalSummary.usableRate }}
+        </span>
+      </div>
+      <p class="muted" style="font-size:13px">
+        库内容变化后,评估用例的期望会过时:真正相关的新文档被判"未命中"(错杀)。跑一遍后,AI 会对每条未命中判断是"期望过时"还是"真实检索失败",前者由你确认后把新文档加入期望。
+      </p>
+      <div v-for="s in evalSuggestions" :key="s.q" class="inbox-item">
+        <div class="ib-head">
+          <span class="ib-type" :class="s.verdict === 'stale' ? 't-tag' : s.verdict === 'real-miss' ? 't-conflict' : 't-fail'">
+            {{ s.verdict === 'stale' ? '期望过时' : s.verdict === 'real-miss' ? '真失败' : '不确定' }}
+          </span>
+          <b>{{ s.q }}</b>
+        </div>
+        <p class="muted" style="font-size:13px">{{ s.reason }}</p>
+        <p class="muted" style="font-size:12px">
+          期望:{{ s.expected.join(' / ') || '(无)' }}
+          <template v-if="s.suggestedDocs.length"> → 建议加入:{{ s.suggestedDocs.map((d) => '《' + d.title + '》').join(' ') }}</template>
+        </p>
+        <div class="ib-actions" v-if="s.verdict === 'stale' && s.suggestedDocs.length">
+          <button class="primary mini" @click="applyEvalCalibration(s)">按建议更新期望</button>
+          <button class="mini" @click="dismissEvalCalibration(s)">忽略</button>
+        </div>
+        <div class="ib-actions" v-else>
+          <button class="mini" @click="dismissEvalCalibration(s)">知道了</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>数据存储</h2>
+    <div class="card">
+      <h2>数据存储</h2>
+      <p class="muted" style="word-break:break-all">
+        当前:<template v-if="dataInfo">{{ dataInfo.dir }}(共 {{ dataInfo.totalMB }} MB:主库 {{ dataInfo.dbMB }} + 快照 {{ dataInfo.snapshotsMB }} + 备份 {{ dataInfo.backupsMB }})</template><template v-else>读取中…</template>
+      </p>
+      <div class="ib-actions" v-if="isDesktop">
+        <button class="primary" :disabled="migrating" @click="moveDataDir">迁移数据目录…</button>
+        <span class="muted" style="font-size:13px">迁到别的盘,摆脱 C 盘占用;迁移后自动重启</span>
+      </div>
+      <p v-if="dataMsg" :class="dataOk ? 'save-done' : 'error'">{{ dataMsg }}</p>
+    </div>
+
+    <div class="card">
+      <h2>回顾</h2>
+ <span class="muted">学习版周报:本周新增 + 待重编译主题 + 下一步建议</span></h2>
+      <div class="ib-actions">
+        <button class="primary" :disabled="reviewing" @click="genReview">{{ reviewing ? '生成中…' : '生成最近 7 天回顾' }}</button>
+      </div>
+      <div v-if="reviewContent" class="answer-text report" style="margin-top:10px" v-html="reviewHtml"></div>
+    </div>
+
+    <div class="card">
+      <h2>待办收件箱 <span class="muted">({{ inbox.length }})</span></h2>
+      <p v-if="!inbox.length" class="muted">全部处理完毕,没有待办。</p>
+
+      <div v-for="it in inbox" :key="it.id" class="inbox-item">
+        <!-- 新标签待审 -->
+        <template v-if="it.type === 'tag_review'">
+          <div class="ib-head">
+            <span class="ib-type t-tag">新标签</span>
+            <b>「{{ it.p.tagName }}」</b>
+            <span class="muted">来自《{{ it.p.documentTitle }}》 · 区域 {{ regionName(it.p.regionSlug) }} · 已绑 {{ it.p.usage }} 篇</span>
+          </div>
+          <div class="ib-actions" v-if="!it.done">
+            <button class="primary" @click="tagAction(it, 'approve')">批准</button>
+            <template v-if="mergeTargets(it.p.regionSlug, it.p.tagName).length">
+              <select v-model="it.mergeTarget">
+                <option value="">合并到已有标签…</option>
+                <option v-for="t in mergeTargets(it.p.regionSlug, it.p.tagName)" :key="t.id" :value="t.id">{{ t.name }}</option>
+              </select>
+              <button :disabled="!it.mergeTarget" @click="tagAction(it, 'merge')">合并</button>
+            </template>
+            <button class="danger" @click="tagAction(it, 'reject')">拒绝</button>
+          </div>
+          <span v-else class="save-done">{{ it.done }}</span>
+        </template>
+
+        <!-- 冲突裁决 -->
+        <template v-else-if="it.type === 'conflict_review'">
+          <div class="ib-head">
+            <span class="ib-type t-conflict">冲突裁决</span>
+            <span class="muted">{{ it.p.note }}</span>
+          </div>
+          <div class="conflict-pair">
+            <div class="conflict-side" :class="{ newer: it.p.newer === 'a' }">
+              <div class="cs-title">《{{ it.p.a.title }}》<span class="tag-new" v-if="it.p.newer === 'a'">较新</span></div>
+              <div class="cite-loc">「{{ it.p.a.heading || '正文' }}」 · {{ it.p.a.time }}</div>
+              <p>{{ it.p.a.excerpt }}…</p>
+            </div>
+            <div class="conflict-side" :class="{ newer: it.p.newer === 'b' }">
+              <div class="cs-title">《{{ it.p.b.title }}》<span class="tag-new" v-if="it.p.newer === 'b'">较新</span></div>
+              <div class="cite-loc">「{{ it.p.b.heading || '正文' }}」 · {{ it.p.b.time }}</div>
+              <p>{{ it.p.b.excerpt }}…</p>
+            </div>
+          </div>
+          <div class="ib-actions" v-if="!it.done">
+            <button class="primary" @click="decide(it, 'a_active')">以《{{ shortTitle(it.p.a.title) }}》为准</button>
+            <button class="primary" @click="decide(it, 'b_active')">以《{{ shortTitle(it.p.b.title) }}》为准</button>
+            <button @click="decide(it, 'both_valid')">两者并存</button>
+          </div>
+          <span v-else class="save-done">{{ it.done }}</span>
+        </template>
+
+        <!-- 打标失败 -->
+        <template v-else-if="it.type === 'tagging_failed'">
+          <div class="ib-head">
+            <span class="ib-type t-fail">打标失败</span>
+            <b>《{{ it.p.title }}》</b>
+            <span class="muted">{{ it.p.error }}</span>
+          </div>
+          <div class="ib-actions" v-if="!it.done">
+            <button class="primary" @click="retryTagging(it)">重新打标</button>
+            <button @click="ignoreInbox(it)">忽略</button>
+          </div>
+          <span v-else class="save-done">{{ it.done }}</span>
+        </template>
+
+        <!-- 暂存的问答/研究 -->
+        <template v-else-if="it.type === 'save_review'">
+          <div class="ib-head">
+            <span class="ib-type t-save">{{ it.p.kind === 'research' ? '暂存研究' : '暂存问答' }}</span>
+            <b>{{ it.p.question }}</b>
+          </div>
+          <p class="ib-preview">{{ (it.p.report || it.p.answer || '').slice(0, 220) }}…</p>
+          <div class="ib-actions" v-if="!it.done">
+            <label class="muted">入库到
+              <select v-model="it.region">
+                <option value="learning">学习</option>
+                <option value="work">工作</option>
+              </select>
+            </label>
+            <button class="primary" @click="saveFromInbox(it)">{{ it.p.kind === 'research' ? '报告入库' : '入库' }}</button>
+            <button class="danger" @click="dropFromInbox(it)">丢弃</button>
+          </div>
+          <span v-else class="save-done">{{ it.done }}</span>
+        </template>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>词表管理
+        <label class="muted">区域
+          <select v-model="taxoRegion" @change="loadTaxonomy()">
+            <option v-for="r in regions" :key="r.slug" :value="r.slug">{{ r.name }}</option>
+          </select>
+        </label>
+      </h2>
+      <div class="taxo-add">
+        <input v-model="newTagName" placeholder="手动添加新标签(直接进入已批准)" @keydown.enter="taxoAdd">
+        <button @click="taxoAdd" :disabled="!newTagName.trim()">添加</button>
+      </div>
+      <template v-if="taxonomy.length">
+        <h3 v-if="pendingTags.length" class="muted">待审 ({{ pendingTags.length }}) —— 批准后进入可用词表</h3>
+        <table class="doc-table" v-if="pendingTags.length">
+          <thead><tr><th>标签</th><th>绑定</th><th>操作</th></tr></thead>
+          <tbody>
+            <tr v-for="t in pendingTags" :key="t.id" class="row-pending">
+              <td>{{ t.name }}</td>
+              <td>{{ t.usage }}</td>
+              <td class="op-cell">
+                <button class="mini primary" @click="taxoApprove(t)">批准</button>
+                <select v-if="mergeCandidates(t).length" v-model="t.mergeTo">
+                  <option value="">合并到…</option>
+                  <option v-for="o in mergeCandidates(t)" :key="o.id" :value="o.id">{{ o.name }}</option>
+                </select>
+                <span v-else class="muted" style="font-size:12px">暂无可合并的已批准标签</span>
+                <button class="mini" :disabled="!t.mergeTo" @click="taxoMerge(t)">合并</button>
+                <button class="mini danger" @click="taxoReject(t)" :title="t.usage ? ('会摘掉 ' + t.usage + ' 处绑定') : '删除该标签'">拒绝</button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <details class="approved-fold" :open="!pendingTags.length">
+          <summary>已批准 ({{ approvedTags.length }}) —— 点开管理</summary>
+          <table class="doc-table" v-if="approvedTags.length">
+            <thead><tr><th>标签</th><th>绑定</th><th>操作</th></tr></thead>
+            <tbody>
+              <tr v-for="t in approvedTags" :key="t.id">
+                <td>{{ t.name }}</td>
+                <td>{{ t.usage }}</td>
+                <td class="op-cell">
+                  <select v-if="mergeCandidates(t).length" v-model="t.mergeTo">
+                    <option value="">合并到…</option>
+                    <option v-for="o in mergeCandidates(t)" :key="o.id" :value="o.id">{{ o.name }}</option>
+                  </select>
+                  <span v-else class="muted" style="font-size:12px">暂无可合并对象</span>
+                  <button class="mini" :disabled="!t.mergeTo" @click="taxoMerge(t)">合并</button>
+                  <button class="mini danger" @click="taxoReject(t)" :title="t.usage ? ('会摘掉 ' + t.usage + ' 处绑定') : '删除该标签'">拒绝</button>
+                </td>
+              </tr>
+            </tbody>
+          </table>
+          <p v-else class="muted">还没有已批准标签。</p>
+        </details>
+      </template>
+            <p v-else class="muted">该区域词表为空。</p>
+    </div>
+
+    <div class="card" v-if="resolvedRecent.length">
+      <h2>最近已处理</h2>
+      <ul class="resolved-list">
+        <li v-for="r in resolvedRecent" :key="r.id">
+          <span class="muted">{{ r.resolved_at }}</span> [{{ inboxTypeZh(r.type) }}] {{ r.resolution }}
+        </li>
+      </ul>
+    </div>
+
+    <div class="card danger-zone">
+      <h2>危险操作</h2>
+      <p class="muted">清空整个知识库:所有文档、标签、待办、关系全部删除,快照一并删除,不可恢复。</p>
+      <div class="danger-row">
+        <input v-model="resetWord" placeholder='输入"重置"两个字以解锁'>
+        <button class="danger" :disabled="resetWord !== '重置'" @click="doReset">清空重置</button>
+      </div>
+      <p v-if="resetMsg" :class="resetOk ? 'save-done' : 'error'">{{ resetMsg }}</p>
+    </div>
+  </main>
+
+  <!-- ── 文档库 ────────────────────────────────────────────── -->
+  <main v-show="tab === 'docs'">
+    <div class="card import-box">
+      <h2>导入资料</h2>
+      <div
+        class="dropzone"
+        :class="{ on: dropHover }"
+        @dragover.prevent="dropHover = true"
+        @dragleave.prevent="dropHover = false"
+        @drop.prevent="onDrop"
+      >
+        <p class="dz-main">把文件或文件夹拖到这里</p>
+        <p class="dz-sub">支持 Markdown / TXT / docx,可多选、可整个文件夹</p>
+        <div class="dz-btns">
+          <label class="dz-btn">选择文件<input type="file" multiple accept=".md,.markdown,.txt,.docx" hidden @change="onPickFiles"></label>
+          <label class="dz-btn">选择文件夹<input type="file" webkitdirectory hidden @change="onPickFiles"></label>
+        </div>
+      </div>
+      <div class="import-url">
+        <input v-model="importUrl" placeholder="或粘贴网页地址,例如 https://example.com/article" @keydown.enter="importUrl2">
+        <button :disabled="!importUrl.trim() || importing" @click="importUrl2">导入网页</button>
+      </div>
+      <div class="import-note">
+        <textarea v-model="noteText" rows="2" placeholder="随手记:一条想法、一个待办、一段代码笔记…(直接作为一条文档入库)"></textarea>
+        <button :disabled="!noteText.trim() || importing" @click="importNote">记一条</button>
+      </div>
+      <div class="import-opts">
+        <label>存入
+          <select v-model="importRegion">
+            <option v-for="r in regions" :key="r.slug" :value="r.slug">{{ r.name }}</option>
+          </select>
+        </label>
+        <label><input type="checkbox" v-model="importTag"> AI 打标 + 摘要</label>
+        <label><input type="checkbox" v-model="importRel"> 关系对比</label>
+      </div>
+      <div v-if="importing || importResults.length" class="import-progress">
+        <p class="muted">{{ importStage }}</p>
+        <div v-for="(r, i) in importResults" :key="i" class="import-line">
+          <template v-if="r.status === 'ok'">
+            ✔ {{ r.name }} → 《{{ r.title }}》({{ r.chunks }} chunks)
+            <span v-if="r.tags" class="muted">标签:{{ r.tags.join('、') }}</span>
+          </template>
+          <template v-else-if="r.status === 'duplicate'">⊘ {{ r.name }} 内容重复,已跳过</template>
+          <template v-else-if="r.status === 'failed'">✘ {{ r.name }} — {{ r.error }}</template>
+          <template v-else>… {{ r.name }}</template>
+        </div>
+      </div>
+      <p v-if="importDone" class="save-done">{{ importDone }}</p>
+    </div>
+
+    <div class="card">
+      <h2>
+        <button class="view-toggle" :class="{ on: docsView === 'docs' }" @click="docsView = 'docs'">文档</button>
+        <button class="view-toggle" :class="{ on: docsView === 'topics' }" @click="switchTopics">主题</button>
+        <label class="muted" style="margin-left:auto;font-weight:400">范围
+          <select v-model="region" @change="loadDocs">
+            <option value="">全库</option>
+            <option v-for="r in regions" :key="r.slug" :value="r.slug">{{ r.name }}</option>
+          </select>
+        </label>
+      </h2>
+
+      <div v-if="docsView === 'topics'">
+        <p v-if="!topics.length" class="muted">还没有主题页。同主题文档 ≥3 篇时,整理台会出现建议编译,一键生成。</p>
+        <table v-if="topics.length" class="doc-table">
+          <thead><tr><th>主题</th><th>文档数</th><th>最后编译</th><th>操作</th></tr></thead>
+          <tbody>
+            <tr v-for="t in topics" :key="t.id">
+              <td><a href="#" @click.prevent="openTopic(t.id)">{{ t.title }}</a> <span v-if="topicStale(t)" class="tag-warn">有新资料</span></td>
+              <td>{{ t.docCount }}</td>
+              <td class="muted">{{ t.updated_at }}</td>
+              <td><button class="mini" @click="openTopic(t.id)">查看</button> <button class="mini danger" @click="deleteTopic(t.id)">删除</button></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div v-else>
+        <div class="import-note" style="margin-bottom:10px;">
+          <input v-model="docSearchQ" placeholder="找文档:输入关键词(零 token 检索,不调 AI)" @keydown.enter="searchDocs">
+          <button :disabled="!docSearchQ.trim()" @click="searchDocs">搜索</button>
+        </div>
+
+        <div v-if="searchResults !== null" style="margin-bottom:12px;">
+          <h3>「{{ lastSearchQ }}」的检索结果</h3>
+          <p v-if="!searchResults.length" class="muted">没有命中。</p>
+          <div v-for="d in searchResults" :key="d.id" class="search-hit">
+            <a href="#" @click.prevent="openDoc(d.id)">《{{ d.title }}》</a>
+            <div v-for="(h, i) in d.hits" :key="i" class="hit-snippet">
+              <span class="cite-loc" v-if="h.headingPath">「{{ h.headingPath }}」</span>{{ h.snippet }}…
+            </div>
+          </div>
+        </div>
+
+        <h3 class="muted">全部文档 ({{ docs.length }})</h3>
+        <p v-if="!docs.length" class="muted">还没有文档 —— 用上面的导入卡片把资料放进来。</p>
+        <table v-if="docs.length" class="doc-table">
+          <thead><tr><th>标题</th><th>来源</th><th>区域</th><th>标签</th><th>入库时间</th></tr></thead>
+          <tbody>
+            <tr v-for="d in docs" :key="d.id">
+              <td><a href="#" @click.prevent="openDoc(d.id)">{{ d.title }}</a></td>
+              <td>{{ d.source_type === 'url' ? '网页' : d.source_type === 'research' ? '问答沉淀' : '文件' }}</td>
+              <td>{{ regionName(d.region) }}</td>
+              <td class="tag-cell"><span v-for="t in d.tags" :key="t" class="tag">{{ t }}</span></td>
+              <td>{{ d.created_at }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card" v-if="activeTopic">
+      <button class="close" @click="activeTopic = null">✕ 关闭</button>
+      <h2>《{{ activeTopic.title }}》 <span class="muted">编译于 {{ activeTopic.updated_at }}</span></h2>
+      <div class="answer-text report" v-html="topicHtml"></div>
+      <div class="tag-row">
+        <span v-for="d in activeTopic.docs" :key="d.id" style="margin-right:10px">
+          <a class="cite-loc" href="#" @click.prevent="openDoc(d.id)">《{{ d.title }}》</a>
+        </span>
+      </div>
+      <div class="ib-actions">
+        <button @click="recompileTopic">依据当前 {{ activeTopic.docs.length }} 篇重新编译</button>
+        <span v-if="topicMsg" class="save-done">{{ topicMsg }}</span>
+      </div>
+    </div>
+
+    <div class="card" v-if="activeDoc">
+      <button class="close" @click="activeDoc = null">✕ 关闭</button>
+      <div class="ib-actions" style="margin:0 0 8px;justify-content:flex-end">
+        <button class="mini" @click="viewSnapshot(activeDoc.id)">查看原文快照</button>
+        <button class="mini danger" @click="deleteDoc(activeDoc)">删除本文档</button>
+      </div>
+      <h2>《{{ activeDoc.title }}》</h2>
+      <p class="muted meta">
+        {{ regionName(activeDoc.region) }}区 ·
+        {{ activeDoc.source_type === 'url' ? '网页' : activeDoc.source_type === 'research' ? '问答沉淀' : '文件' }} ·
+        {{ activeDoc.char_count }} 字 · 入库 {{ activeDoc.created_at }}<br>
+        <span class="src">来源:{{ activeDoc.source_ref }}</span>
+      </p>
+
+      <div class="tag-row">
+        <span v-for="t in activeDoc.tags" :key="t.name" class="tag" :class="{ pending: t.status === 'pending' }">
+          {{ t.name }}<template v-if="t.status === 'pending'">*(待审)</template>
+        </span>
+      </div>
+
+      <template v-if="activeDoc.summary">
+        <h3>要点</h3>
+        <ul class="kp"><li v-for="k in parseKp(activeDoc.summary.key_points)" :key="k">{{ k }}</li></ul>
+        <p v-if="activeDoc.summary.value_note" class="kp-value">💎 对我:{{ activeDoc.summary.value_note }}</p>
+        <p v-if="activeDoc.summary.version_notes" class="muted">时效:{{ activeDoc.summary.version_notes }}</p>
+      </template>
+
+      <template v-if="activeDoc.relations.length">
+        <h3>关系</h3>
+        <ul class="rels">
+          <li v-for="(r, i) in activeDoc.relations" :key="i">
+            <span class="rel-type" :class="r.type">{{ relZh(r.type) }}</span>
+            <a href="#" @click.prevent="openDoc(r.other_id)">《{{ r.other_title }}》</a>
+            <span v-if="r.status === 'undecided'" class="tag-warn">未裁决</span>
+            <span class="muted">—— {{ r.note }}</span>
+          </li>
+        </ul>
+      </template>
+
+      <h3>正文分块({{ activeDoc.chunks.length }})</h3>
+      <details v-for="c in activeDoc.chunks" :key="c.ordinal" class="chunk">
+        <summary>#{{ c.ordinal }} {{ c.heading_path || '(正文)' }}</summary>
+        <p>{{ c.content }}</p>
+      </details>
+    </div>
+  </main>
+</div>
+<script src="/vendor/vue.global.prod.js"></script>
+<script src="/app.js"></script>
+</body>
+</html>

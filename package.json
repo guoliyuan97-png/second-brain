@@ -1,0 +1,54 @@
+{
+  "name": "second-brain",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "个人知识系统:导入管线(打标/摘要/关系)+ 归纳问答 + Deep Research + 整理台",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "cli": "tsx src/cli.ts",
+    "web": "tsx src/web/server.ts",
+    "desktop": "electron .",
+    "build:server": "node scripts/build-server.mjs",
+    "dist": "npm run build:server && node -e \"const fs=require('fs'); fs.existsSync('.env') && (fs.copyFileSync('.env','build/.env'), console.log('.env 已随包暂存'))\" && electron-builder --win",
+    "typecheck": "tsc --noEmit"
+  },
+  "build": {
+    "appId": "com.secondbrain.local",
+    "productName": "second-brain",
+    "directories": {
+      "output": "release"
+    },
+    "asar": false,
+    "files": [
+      "electron/**/*",
+      "build/**/*",
+      "public/**/*",
+      "package.json",
+      ".env",
+      "eval/**"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "dir",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    }
+  },
+  "devDependencies": {
+    "@types/node": "^26.4.0",
+    "electron": "^44.0.0",
+    "electron-builder": "^26.15.3",
+    "esbuild": "^0.28.2",
+    "mammoth": "^1.12.2",
+    "tsx": "^4.23.12",
+    "typescript": "^7.0.2"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "^4.2.0"
+  }
+}

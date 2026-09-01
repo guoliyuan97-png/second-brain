@@ -1,0 +1,227 @@
+{
+  "runAt": "2026/9/1 11:50:51",
+  "total": 16,
+  "citationHitRate": "75%",
+  "mentionedRate": "75%",
+  "usableRate": "94%",
+  "avgLatencySec": "3.6",
+  "outcomes": [
+    {
+      "q": "编译型知识库和传统 RAG 有什么区别?",
+      "citationHit": true,
+      "mentioned": true,
+      "usable": true,
+      "citedDocs": [
+        "AI 学习之路：为什么要自己搭一个 AI 知识库",
+        "AI 学习之路：技术思维——让 AI 帮你选技术栈",
+        "随手记:当然可以。RAG 完全是个搞懂**「为什么」+「一个很短的核"
+      ],
+      "missingKeywords": [],
+      "latencyMs": 4685
+    },
+    {
+      "q": "个人知识库的存储分层应该怎么设计?",
+      "citationHit": true,
+      "mentioned": true,
+      "usable": true,
+      "citedDocs": [
+        "AI 学习之路：技术思维——让 AI 帮你选技术栈",
+        "AI 学习之路：架构思维笔记",
+        "AI 学习之路：为什么要自己搭一个 AI 知识库"
+      ],
+      "missingKeywords": [],
+      "latencyMs": 2787
+    },
+    {
+      "q": "给个人项目选技术栈时应该看哪些公开信号?",
+      "citationHit": true,
+      "mentioned": true,
+      "usable": true,
+      "citedDocs": [
+        "AI 学习之路：技术思维——让 AI 帮你选技术栈"
+      ],
+      "missingKeywords": [],
+      "latencyMs": 2553
+    },
+    {
+      "q": "Agentic Coding 的核心工作循环是什么?",
+      "citationHit": true,
+      "mentioned": true,
+      "usable": true,
+      "citedDocs": [
+        "AI 学习之路：Agentic Coding——从架构到可运行产品",
+        "AI 学习之路：产品思维——从日常产品里找需求"
+      ],
+      "missingKeywords": [],
+      "latencyMs": 2215
+    },
+    {
+      "q": "做 AI 音乐时歌词应该怎么结构化?",
+      "citationHit": true,
+      "mentioned": true,
+      "usable": true,
+      "citedDocs": [
+        "AI 学习之路：AI 音乐——从故事到结构化歌词",
+        "AI 学习之路：AI 音乐引擎选择与风格提示词",
+        "AI 学习之路：从 MP3 到单分镜 AI MV"
+      ],
+      "missingKeywords": [],
+      "latencyMs": 2968
+    },
+    {
+      "q": "怎么把做好的歌做成 AI MV?",
+      "citationHit": true,
+      "mentioned": true,
+      "usable": true,
+      "citedDocs": [
+        "AI 学习之路：从 MP3 到单分镜 AI MV",
+        "AI 学习之路：AI 音乐——从故事到结构化歌词",
+        "AI 学习之路之「Skill：让 AI 记住你常做的事」",
+        "AI 学习之路之「AI 视频技术栈全景图：画面与声音」"
+      ],
+      "missingKeywords": [],
+      "latencyMs": 5839
+    },
+    {
+      "q": "AI Agent 的 ReAct 模式是什么?",
+      "citationHit": false,
+      "mentioned": false,
+      "usable": true,
+      "citedDocs": [
+        "随手记:# 第 5 步：把检索到的内容\"塞进问题\"，让模型照着答",
+        "随手记:工具加好了、验证通过、环境也清理好了。下面按「整体数据流 →"
+      ],
+      "missingKeywords": [
+        "边想边做"
+      ],
+      "latencyMs": 3896
+    },
+    {
+      "q": "复刻别人的网站设计时要注意什么合规问题?",
+      "citationHit": true,
+      "mentioned": true,
+      "usable": false,
+      "citedDocs": [],
+      "missingKeywords": [
+        "著作权",
+        "商用"
+      ],
+      "latencyMs": 3079
+    },
+    {
+      "q": "个人品牌站做完怎么部署上线?",
+      "citationHit": true,
+      "mentioned": true,
+      "usable": true,
+      "citedDocs": [
+        "AI 学习之路：个人品牌站从设计到上线",
+        "AI 学习之路：网页基础与合规复刻",
+        "AI 学习之路：个人站点的设计与审美",
+        "AI 学习之路之「Claude Code & Codex 全局配置：让 AI 永远记住你是谁」"
+      ],
+      "missingKeywords": [],
+      "latencyMs": 3721
+    },
+    {
+      "q": "怎么做 MVP 才不会变成收藏夹?",
+      "citationHit": true,
+      "mentioned": true,
+      "usable": true,
+      "citedDocs": [
+        "AI 学习之路：为什么要自己搭一个 AI 知识库",
+        "AI 学习之路：架构思维笔记",
+        "AI 学习之路：产品思维——从日常产品里找需求"
+      ],
+      "missingKeywords": [],
+      "latencyMs": 3639
+    },
+    {
+      "q": "给 AI 音乐选生成引擎时要注意什么?",
+      "citationHit": true,
+      "mentioned": true,
+      "usable": true,
+      "citedDocs": [
+        "AI 学习之路：AI 音乐引擎选择与风格提示词",
+        "AI 学习之路：AI 音乐——从故事到结构化歌词"
+      ],
+      "missingKeywords": [],
+      "latencyMs": 3073
+    },
+    {
+      "q": "个人站点的设计审美怎么提升?",
+      "citationHit": true,
+      "mentioned": true,
+      "usable": true,
+      "citedDocs": [
+        "AI 学习之路：个人站点的设计与审美",
+        "AI 学习之路：个人品牌站从设计到上线",
+        "AI 学习之路之「AI 工作流：把 AI 真正融入你的日常」"
+      ],
+      "missingKeywords": [],
+      "latencyMs": 4027
+    },
+    {
+      "q": "写东西没灵感的时候怎么办?",
+      "citationHit": false,
+      "mentioned": false,
+      "usable": true,
+      "citedDocs": [
+        "AI 学习之路之「Skill：让 AI 记住你常做的事」",
+        "AI 学习之路之「AI 工作流：把 AI 真正融入你的日常」",
+        "AI 学习之路之「学会跟 AI 说话：Prompt 从入门到精通」",
+        "AI 学习之路：AI 音乐——从故事到结构化歌词"
+      ],
+      "missingKeywords": [
+        "日常"
+      ],
+      "latencyMs": 4059
+    },
+    {
+      "q": "怎么避免 AI 帮忙干活的时候跑偏?",
+      "citationHit": false,
+      "mentioned": false,
+      "usable": true,
+      "citedDocs": [
+        "AI 学习之路之「学会跟 AI 说话：Prompt 从入门到精通」",
+        "AI 学习之路之「AI 工作流：把 AI 真正融入你的日常」",
+        "AI 学习之路之「工具如何选」",
+        "AI 学习之路之「Skill：让 AI 记住你常做的事」"
+      ],
+      "missingKeywords": [
+        "验证",
+        "止损"
+      ],
+      "latencyMs": 3380
+    },
+    {
+      "q": "零散的笔记怎么变成能用的知识?",
+      "citationHit": true,
+      "mentioned": true,
+      "usable": true,
+      "citedDocs": [
+        "AI 学习之路：技术思维——让 AI 帮你选技术栈",
+        "AI 学习之路：架构思维笔记",
+        "AI 学习之路：为什么要自己搭一个 AI 知识库"
+      ],
+      "missingKeywords": [],
+      "latencyMs": 4819
+    },
+    {
+      "q": "学技术是不是什么都要自己写一遍?",
+      "citationHit": false,
+      "mentioned": false,
+      "usable": true,
+      "citedDocs": [
+        "AI 学习之路之「AI 工作流：把 AI 真正融入你的日常」",
+        "AI 学习之路之「Skill：让 AI 记住你常做的事」",
+        "AI 学习之路之「学会跟 AI 说话：Prompt 从入门到精通」",
+        "AI 学习之路之「AI 视频流水线实战：文档一键变预览视频」"
+      ],
+      "missingKeywords": [
+        "现成",
+        "采购"
+      ],
+      "latencyMs": 3510
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "summary": {
+    "runAt": "2026/9/1 12:31:51",
+    "total": 16,
+    "citationHitRate": "75%",
+    "mentionedRate": "75%",
+    "usableRate": "100%",
+    "avgLatencySec": "3.6"
+  },
+  "suggestions": [
+    {
+      "q": "AI Agent 的 ReAct 模式是什么?",
+      "verdict": "real-miss",
+      "reason": "实际引用内容主要讨论RAG工具调用和Agent循环实现，未直接解释ReAct模式的定义，答非所问。",
+      "expected": [
+        "AI Agent使用指南"
+      ],
+      "suggestedDocs": []
+    },
+    {
+      "q": "怎么避免 AI 帮忙干活的时候跑偏?",
+      "verdict": "real-miss",
+      "reason": "实际引用内容是关于Prompt技巧、工作流和Skill的，没有直接回答如何避免AI跑偏，期望文档是Agentic Coding，实际引用未命中该主题。",
+      "expected": [
+        "Agentic Coding"
+      ],
+      "suggestedDocs": []
+    },
+    {
+      "q": "学技术是不是什么都要自己写一遍?",
+      "verdict": "real-miss",
+      "reason": "实际引用内容讨论AI工作流、Prompt技巧等，未直接回答‘学技术是否都要自己写一遍’的核心问题，答非所问。",
+      "expected": [
+        "技术思维"
+      ],
+      "suggestedDocs": []
+    }
+  ]
+}
