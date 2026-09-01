@@ -35,6 +35,8 @@ npm run cli -- eval [评估集路径]   # 评估集跑分(引用命中/要点覆
 npm run cli -- doc <id>            # 标签/摘要/关系详情
 npm run cli -- stats | inbox | taxo list|add|approve <region> [...] | reset --yes
 npm run web                        # 本机 Web(127.0.0.1:8790)
+npm run mcp                        # MCP stdio 服务(开发态;打包产物 build/mcp.mjs)
+node scripts/test-mcp.mjs quick    # MCP 协议冒烟(full = 追加真实问答+研究,花 token)
 npm run desktop                    # Electron 开发态(会复用 8790 已有服务)
 npm run dist                       # 打包 exe:esbuild 捆 server(+createRequire banner,.env 随包)→ release/win-unpacked/second-brain.exe
 npm run typecheck
@@ -44,8 +46,17 @@ npm run typecheck
 - 用 `node:sqlite`(Node 24 内置,Windows 零编译);**打包版 Electron 必须 ≥39(自带 Node ≥24)**,否则没有 node:sqlite —— 当前 electron@44(Node 24.18)
 - 桌面快捷方式 `second-brain.lnk` → release/win-unpacked/second-brain.exe,双击即用,零命令行
 
-## 当前状态(2026-08-29,W5+打包+全 GUI 化完成)
+## 当前状态(2026-09-01,W7.1 回答反思自检完成)
 
+- ✅ **W7.1 回答反思自检**:回答生成后一次便宜的 callJson,把每个 [n] 论断对照所引 chunk **原文**(不是 500 字摘录 —— 摘录截断外的合法支撑会误报,实测首日就抓到)逐条校验"张冠李戴/无中生有",只报问题不报通过;发现不自洽把问题清单带回去**重答一次**,修订稿须保住 ≥1 个合法引用才采纳(全删引用的"修订"不如保留原稿亮出问题);校验链路故障则原答案照常(降级不阻塞);
+-   三张皮同步透出:CLI 打印自检行;Web 回答卡下标注"已修正重答"(通过时零噪音);MCP ask_knowledge 注明是第二稿;流式路径重试=重流(前端 delta 本就整段替换,自然覆盖),SSE done 事件带 reflection 字段;QA_REFLECT=off 可关(评估同受控);
+-   验证:单测 scripts/test-reflect.ts 双路(误引必须抓到/正确引用零误报)+ CLI 与 8791 端口流式 SSE 实测 —— 真实问答首稿 8 条引用被抓出 5 处误标,重试稿删掉无据论断、收紧引用;
+-   **自检器精度坑(打包版首日实测抓到)**:校验提示词若只列"矛盾/对不上/没有该内容"三种判定,模型会过度严格,把同义改写(片段"质量会直线下降" vs 论断"质量下降")也报成不自洽 —— 误报清单污染重试提示,修订稿把引用删光而被拒收。修法:提示词明确"同义改写一律放行 + 拿不准不报",同题复测 5 引用零误报;
+-   ✅ **问答/深研输入框 Enter 直发(用户反馈的反直觉点)**:原先只绑 Ctrl+Enter,改成聊天软件惯例 `@keydown.enter.exact.prevent`(Enter 发送、Shift+Enter 换行、Ctrl+Enter 备用发送),placeholder 同步;两处 textarea(问答/深研)都改,与页面单行输入框的 enter 直发保持一致。浏览器实机验证全链路通过(IAB 自动化的 locator.press/cua.keypress 派发键会落在 body 上 —— 测试前必须先 click 聚焦目标元素,否则探针收不到 keydown,这是自动化环境坑不是产品 bug);
+- ✅ **W7 MCP Server(stdio,4 工具)**:`@modelcontextprotocol/sdk 1.30 + zod 4`,src/mcp/server.ts 复用 retriever/answer/research/topics 模块零重写("同一套业务的第三张皮")——`search_knowledge`(混合检索,零 token)/ `ask_knowledge`(带 [n] 引用问答,支持 history 多轮)/ `run_research`(长任务,阶段进度走 notifications/progress,只返回不自动入库——沉淀裁决权在用户)/ `list_topics`(列表 + topicId 取全文);实测 11 项全过(scripts/test-mcp.mjs quick/full,full 含真实 LLM 问答与研究 26s 出报告 + 20 条进度通知);
+-   **stdio 纪律**:stdout 是 JSON-RPC 协议通道,入口第一件事把 console.log/warn 重定向 stderr(拦 transformers.js 等第三方杂音),否则客户端解析失败断连;
+-   **与桌面端并行安全**:WAL 多进程读写;向量缓存是进程内存,别处新入库重启 MCP 会话可见;启动照常 requestBackfill(已齐时只查一次库,不加载嵌入模型);
+-   **接入坑**:数据目录必须 SB_DATA_DIR 显式指定(默认会落到项目内空库,启动 stderr 会打印实际数据目录与文档数);打包 build/mcp.mjs 已随 build/** 分发,esbuild 双入口(server/mcp)同脚本生成;
 - ✅ W1-W4:导入管线/检索器/归纳问答/Deep Research/整理台(详见周报)
 - ✅ W5:评估集跑分(引用命中 100%/要点覆盖 92%/可用 100%/平均 2.3s,评估首日抓出 LIKE 层行序偏置真 bug)+ 周报 docs/周报.md + 截图 docs/screenshots/
 - ✅ 打包:`npm run dist` → **双击版 exe**(release/win-unpacked,asar 关闭——data/ 快照要可写);服务 esbuild 捆单文件在主进程内直跑;.env 由 dist 脚本暂存进 build/ 随包;桌面快捷方式已建
@@ -76,8 +87,7 @@ npm run typecheck
 
 ## 下一步(可选方向)
 
-- **Web 导入页**:exe 里点选文件/目录/URL 导入,补齐"零命令行"最后一环(当前导入仍走 CLI,exe 与 CLI 是两份独立 data)
-- 向量检索器挂 Retriever 接口;研究/问答流式输出;electron-builder 打 NSIS 安装包(现是免安装目录版)
+- LangGraph 暂缓(second-brain 保持零框架);electron-builder 打 NSIS 安装包(现是免安装目录版);评估集重跑看反思自检对引用命中率的增益(W7.1 改动后未重跑,当前指标是混合召回版的)
 
 ## 沟通偏好
 

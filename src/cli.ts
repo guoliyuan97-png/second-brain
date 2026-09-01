@@ -142,6 +142,17 @@ async function cmdAsk(args: string[]): Promise<void> {
   if (qa.conflictNotes.length > 0) {
     for (const n of qa.conflictNotes) console.log(`⚠ 未裁决冲突:${n}`);
   }
+  if (qa.reflection) {
+    if (qa.reflection.revised) {
+      console.log(
+        `🔍 引用自检:发现 ${qa.reflection.issues.length} 处不自洽,已修正(${qa.reflection.issues
+          .map((i) => `[${i.n}] ${i.reason}`)
+          .join(';')})`,
+      );
+    } else {
+      console.log(`🔍 引用自检通过(${qa.reflection.checked} 条引用)`);
+    }
+  }
   console.log(`\n${qa.answer}\n`);
   if (flags.get('save') === true) {
     const r = await saveQaToLibrary(qa, regionSlug);

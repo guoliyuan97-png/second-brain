@@ -37,6 +37,8 @@
         <div v-for="w in turn.conflictNotes" :key="w" class="conflict">⚠ {{ w }}</div>
         <div v-if="turn.streaming" class="muted" style="font-size:13px">{{ turn.stage }}<span class="cursor-blink">▍</span></div>
         <div class="answer-text" @click="jumpCite($event, ti)" v-html="turn.html"></div>
+        <div v-if="turn.reflection && turn.reflection.revised" class="reflect-note">🔍 引用自检:发现 {{ turn.reflection.issues.length }} 处论断与原文不自洽,已修正重答</div>
+        <div v-else-if="turn.reflection && turn.reflection.issues.length" class="conflict">⚠ 引用自检发现疑点未能自动修复:<template v-for="(iss, ii) in turn.reflection.issues" :key="ii">[{{ iss.n }}] {{ iss.reason }}{{ ii < turn.reflection.issues.length - 1 ? ';' : '' }}</template></div>
 
         <details v-if="turn.citations.length" class="cite-fold">
           <summary>引用出处 ({{ turn.citations.length }})</summary>
@@ -70,8 +72,9 @@
       <textarea
         v-model="question"
         rows="2"
-        placeholder="向知识库提问…(Ctrl+Enter 发送;回答后可直接追问,会带上对话上下文)"
-        @keydown.ctrl.enter="ask"
+        placeholder="向知识库提问…(Enter 发送,Shift+Enter 换行;回答后可直接追问,会带上对话上下文)"
+        @keydown.enter.exact.prevent="ask"
+        @keydown.ctrl.enter.prevent="ask"
       ></textarea>
       <div class="ask-actions">
         <div class="scene-chips">场景模板:
@@ -97,8 +100,9 @@
       <textarea
         v-model="researchQ"
         rows="2"
-        placeholder="要研究的问题,例如:MCP 协议是什么?主流 AI Agent 框架怎么选?(联网搜索并生成带引用报告)"
-        @keydown.ctrl.enter="startResearch"
+        placeholder="要研究的问题,例如:MCP 协议是什么?主流 AI Agent 框架怎么选?(联网搜索并生成带引用报告;Enter 发送,Shift+Enter 换行)"
+        @keydown.enter.exact.prevent="startResearch"
+        @keydown.ctrl.enter.prevent="startResearch"
       ></textarea>
       <div class="ask-actions">
         <label>范围
