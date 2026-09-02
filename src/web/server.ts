@@ -874,7 +874,7 @@ const server = createServer(async (req, res) => {
         if (evalJobId !== null && llmJobs.get(evalJobId)?.status === 'running') {
           return json(res, 200, { jobId: evalJobId, running: true });
         }
-        const jobId = startLlmJob('eval', '评估中(每例一次真实问答)…', async (jobIdForStage) => {
+        const jobId = startLlmJob('eval', '评估中(逐例真实问答+引用自检)…', async (jobIdForStage) => {
           const r = await runEvalWithCalibration((stage) => {
             const j = llmJobs.get(jobIdForStage);
             if (j) j.stage = stage;

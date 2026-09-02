@@ -103,6 +103,15 @@ select { padding: 4px 8px; border: 1px solid var(--line); border-radius: 6px; ba
   padding: 8px 12px;
   font-size: 13px;
 }
+/* W7.1 反思自检:修订过的回答给一句说明(只在进行过修正时显示,通过时零噪音) */
+.reflect-note {
+  background: var(--brand-soft);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: var(--ink);
+}
 .answer-text { white-space: pre-wrap; }
 sup.cite {
   color: var(--brand);

@@ -8,6 +8,7 @@
   "scripts": {
     "cli": "tsx src/cli.ts",
     "web": "tsx src/web/server.ts",
+    "mcp": "tsx src/mcp/server.ts",
     "desktop": "electron .",
     "build:server": "node scripts/build-server.mjs",
     "dist": "npm run build:server && node -e \"const fs=require('fs'); fs.existsSync('.env') && (fs.copyFileSync('.env','build/.env'), console.log('.env 已随包暂存'))\" && electron-builder --win",
@@ -49,6 +50,8 @@
     "typescript": "^7.0.2"
   },
   "dependencies": {
-    "@huggingface/transformers": "^4.2.0"
+    "@huggingface/transformers": "^4.2.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "zod": "^4.5.4"
   }
 }
