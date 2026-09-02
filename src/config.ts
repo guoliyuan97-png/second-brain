@@ -62,10 +62,6 @@ export const config = {
   qaMaxChunks: 8,
   /** 每个引用片段的摘录长度(字符) */
   qaChunkSnippetChars: 500,
-  /** 反思自检(W7.1):回答生成后 LLM 对照引用原文逐条校验 [n] 论断,
-   *  不自洽带原因重试一次。QA_REFLECT=off 可关(每答省一次调用);
-   *  评估跑分走同一条管线,同受此开关控制 */
-  qaReflect: process.env.QA_REFLECT !== 'off',
   // ── 深度研究(W3)─────────────────────────────────────────────
   /** LLM 生成的检索词组数上限 */
   researchMaxQueries: 4,

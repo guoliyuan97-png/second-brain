@@ -39,21 +39,6 @@ export interface QaResult {
   /** 命中文档之间存在未裁决冲突(产品原则:照常回答,但必须标注) */
   conflictNotes: string[];
   retrieval: { retriever: string; candidates: number };
-  /** 反思自检(W7.1)。undefined = 未启用或无可校验引用 */
-  reflection?: ReflectionResult;
-}
-
-/** 自检发现的一处引用疑点:n=被质疑的编号,reason=论断与片段哪里对不上 */
-export interface ReflectionIssue {
-  n: number;
-  reason: string;
-}
-
-/** 反思自检结果:checked=首轮校验的引用数;issues=首轮发现的问题;revised=是否已带原因重试并采纳修订稿 */
-export interface ReflectionResult {
-  checked: number;
-  issues: ReflectionIssue[];
-  revised: boolean;
 }
 
 const SYSTEM_PROMPT = `你是个人知识库的问答助手,根据给定材料回答问题。规则:
@@ -143,48 +128,6 @@ async function condenseQuestion(question: string, history: QaHistoryTurn[]): Pro
 
 export interface QaStreamEvent {
   type: 'stage'; stage: string;
-}
-
-// ── 反思自检(W7.1):生成后对照引用原文逐条校验 ─────────────────────
-//
-// 提示词防得住"凭空编造",防不住"张冠李戴":模型可能把 A 片段的结论
-// 错标成 [2](其实出自 [5]),或给片段里没有的数字安上引用。确定性校验器
-// 只能查"编号存在不存在",查不了"论断与片段是否自洽" —— 这是语义判定,
-// 交给一次便宜的结构化 LLM 调用。只报问题不报通过(输出面小,误判率低);
-// 发现问题把清单喂回去重试一次;校验链路本身故障则原答案照常返回
-// (与全库一致的失败哲学:降级,不阻塞)。
-
-const REFLECT_SYSTEM = `你是引用校验员。对照【引用片段】逐条检查【回答】里的 [n] 标记:每个 [n] 前面的论断,是否真的被片段 n 支持?
-判定为问题,只有三种:论断与片段相矛盾;数字/结论/主体对不上;片段里根本没有该内容(可能出自别的片段或凭空而来)。
-同义改写不算问题 —— 片段写"质量会直线下降"、论断写"质量下降"是同一个意思;措辞不完全一致但语义等价的一律放行。
-拿不准的不要报,只报你确定的问题;回答里没标 [n] 的论断不查。没有问题就输出空数组。
-只输出 JSON:{"issues":[{"n":2,"reason":"片段讲的是A方案,论断说的是B方案"}]}`;
-
-/** 校验回答的 [n] 引用;返回发现的问题(编号已对照材料过滤)。校验调用失败由调用方兜底 */
-export async function reflectCitations(question: string, answer: string, citations: QaCitation[]): Promise<ReflectionIssue[]> {
-  const validN = new Set(citations.map((c) => c.n));
-  const r = await callJson<{ issues: ReflectionIssue[] }>({
-    system: REFLECT_SYSTEM,
-    user: `【问题】${question}\n\n【回答】\n${answer}\n\n【引用片段】\n${citations
-      .map((c) => `[${c.n}]《${c.title}》:${c.snippet}`)
-      .join('\n\n')}`,
-    validate: (v) => {
-      if (!v || typeof v !== 'object') return '顶层应为 JSON 对象';
-      const raw = (v as Record<string, unknown>).issues;
-      if (!Array.isArray(raw)) return 'issues 应为数组';
-      const issues: ReflectionIssue[] = [];
-      for (const it of raw) {
-        if (!it || typeof it !== 'object') continue;
-        const o = it as Record<string, unknown>;
-        const n = Number(o.n);
-        const reason = String(o.reason ?? '').trim();
-        if (validN.has(n) && reason) issues.push({ n, reason: reason.slice(0, 60) });
-      }
-      return { issues: issues.slice(0, 5) }; // 问题清单只用来指导一次重试,罗列太多反而失焦
-    },
-    maxTokens: 600,
-  });
-  return r.issues;
 }
 
 export async function answerQuestion(
@@ -295,18 +238,6 @@ export async function answerQuestion(
   const noChunkNote =
     citations.length === 0 ? '\n\n注意:本次没有原文片段,只凭摘要回答,不要输出任何引用编号。' : '';
 
-  // 提示词组装与 JSON 校验器提出来:反思自检的重试要用同一份材料再生成一次
-  const buildUserPrompt = (extra: string): string =>
-    `【问题】${question}${rulesBlock}${historyBlock}\n\n【文档摘要】\n${summaryBlock}${compiledBlock}\n\n【原文片段】\n${chunkBlock || '(无)'}${conflictBlock}${noChunkNote}${extra}`;
-  const validateAnswerJson = (v: unknown): { answer: string; sufficient: boolean } | string => {
-    if (!v || typeof v !== 'object') return '顶层应为 JSON 对象';
-    const o = v as Record<string, unknown>;
-    if (typeof o.answer !== 'string' || !o.answer.trim()) return 'answer 应为非空字符串';
-    if (typeof o.sufficient !== 'boolean') return 'sufficient 应为 boolean';
-    // 引用编号合法性不在校验器里卡重试:后处理摘除即可,省一次往返
-    return { answer: o.answer.trim(), sufficient: o.sufficient };
-  };
-
   let llmAnswer: string;
   let sufficient: boolean;
   try {
@@ -317,7 +248,7 @@ export async function answerQuestion(
       opts.onEvent({ type: 'stage', stage: '生成回答…' });
       llmAnswer = await streamChat({
         system: SYSTEM_PROMPT,
-        user: buildUserPrompt(''),
+        user: `【问题】${question}${rulesBlock}${historyBlock}\n\n【文档摘要】\n${summaryBlock}${compiledBlock}\n\n【原文片段】\n${chunkBlock || '(无)'}${conflictBlock}${noChunkNote}`,
         maxTokens: 2000,
         onDelta: (full) => opts.onEvent?.({ type: 'delta', full }),
       });
@@ -327,8 +258,15 @@ export async function answerQuestion(
     } else {
       const r = await callJson<{ answer: string; sufficient: boolean }>({
         system: SYSTEM_PROMPT + '\n只输出 JSON:{"answer":"…","sufficient":true}(sufficient 表示材料是否足以回答)',
-        user: buildUserPrompt(''),
-        validate: validateAnswerJson,
+        user: `【问题】${question}${rulesBlock}${historyBlock}\n\n【文档摘要】\n${summaryBlock}${compiledBlock}\n\n【原文片段】\n${chunkBlock || '(无)'}${conflictBlock}${noChunkNote}`,
+        validate: (v) => {
+          if (!v || typeof v !== 'object') return '顶层应为 JSON 对象';
+          const o = v as Record<string, unknown>;
+          if (typeof o.answer !== 'string' || !o.answer.trim()) return 'answer 应为非空字符串';
+          if (typeof o.sufficient !== 'boolean') return 'sufficient 应为 boolean';
+          // 引用编号合法性不在校验器里卡重试:后处理摘除即可,省一次往返
+          return { answer: o.answer.trim(), sufficient: o.sufficient };
+        },
         maxTokens: 2000,
       });
       llmAnswer = r.answer;
@@ -351,84 +289,14 @@ export async function answerQuestion(
 
   // 后处理:摘掉材料外编号(幻觉标记),保留有效编号并按出现顺序排引用
   const validN = new Set(citations.map((c) => c.n));
-  const cleanOf = (answer: string): { text: string; finalCitations: QaCitation[] } => {
-    const used = new Set<number>();
-    const text = answer.replace(/\[(\d{1,2})\]/g, (whole, num) => {
-      const n = Number(num);
-      if (!validN.has(n)) return ''; // [99] 这种材料外编号 → 摘除
-      used.add(n);
-      return whole;
-    });
-    return { text, finalCitations: [...used].sort((a, b) => a - b).map((n) => citations[n - 1]!) };
-  };
-  let final = cleanOf(llmAnswer);
+  const used = new Set<number>();
+  const cleaned = llmAnswer.replace(/\[(\d{1,2})\]/g, (whole, num) => {
+    const n = Number(num);
+    if (!validN.has(n)) return ''; // [99] 这种材料外编号 → 摘除
+    used.add(n);
+    return whole;
+  });
+  const finalCitations = [...used].sort((a, b) => a - b).map((n) => citations[n - 1]!);
 
-  // 反思自检(W7.1):对照引用原文逐条校验 [n] 论断,不自洽带原因重试一次。
-  // 只校"真的用了引用"的回答 —— 无编号(材料不足/纯摘要)没有可校验对象;
-  // 修订稿必须还保住 ≥1 个合法引用才采纳(把引用全删光的"修订"不如保留原稿亮出问题);
-  // 自检链路本身故障则原答案照常返回(降级不阻塞)。
-  let reflection: ReflectionResult | null = null;
-  if (config.qaReflect && final.finalCitations.length > 0) {
-    try {
-      const issues = await reflectCitations(
-        question,
-        final.text,
-        // 校验对照的是 chunk 原文而不是 500 字摘录:摘录截断之外的合法支撑
-        // 会被误判"片段里没有"(实测首日就误报过),自检要对齐"原文"这个标准
-        citations.map((c) => {
-          const row = db.prepare('SELECT content FROM chunks WHERE id = ?').get(c.chunkId) as
-            | { content: string }
-            | undefined;
-          return row ? { ...c, snippet: row.content } : c;
-        }),
-      );
-      reflection = { checked: final.finalCitations.length, issues, revised: false };
-      if (issues.length > 0) {
-        opts.onEvent?.({ type: 'stage', stage: `自检发现 ${issues.length} 处引用不自洽,重新作答…` });
-        const fix =
-          `\n\n【上次回答的自检问题】下列引用被判定与原文不自洽,修正方式:改论断、改标正确的编号、或删掉该论断` +
-          `(其余未点名的内容保持原样):\n${issues.map((i) => `- [${i.n}] ${i.reason}`).join('\n')}`;
-        if (opts.onEvent) {
-          // 流式路径同步重流:前端 delta 是整段替换,修订稿自然覆盖已显示的回答
-          const retry = await streamChat({
-            system: SYSTEM_PROMPT,
-            user: buildUserPrompt(fix),
-            maxTokens: 2000,
-            onDelta: (full) => opts.onEvent?.({ type: 'delta', full }),
-          });
-          const r = cleanOf(retry);
-          if (r.text.trim() && r.finalCitations.length > 0) {
-            final = r;
-            sufficient = true; // 修订稿保住合法引用,与流式"有据可答"判定一致
-            reflection.revised = true;
-          }
-        } else {
-          const retry = await callJson<{ answer: string; sufficient: boolean }>({
-            system: SYSTEM_PROMPT + '\n只输出 JSON:{"answer":"…","sufficient":true}(sufficient 表示材料是否足以回答)',
-            user: buildUserPrompt(fix),
-            validate: validateAnswerJson,
-            maxTokens: 2000,
-          });
-          const r = cleanOf(retry.answer);
-          if (r.text.trim() && r.finalCitations.length > 0) {
-            final = r;
-            sufficient = retry.sufficient;
-            reflection.revised = true;
-          }
-        }
-      }
-    } catch {
-      reflection = null; // 校验调用挂了:不持有半截信息,原答案照常
-    }
-  }
-
-  return {
-    ...base,
-    answer: final.text,
-    sufficient,
-    citations: final.finalCitations,
-    usedDocs,
-    conflictNotes,
-    ...(reflection ? { reflection } : {}),
-  };
+  return { ...base, answer: cleaned, sufficient, citations: finalCitations, usedDocs, conflictNotes };
 }

@@ -255,7 +255,6 @@ createApp({
                 citations: payload.citations,
                 usedDocs: payload.usedDocs,
                 conflictNotes: payload.conflictNotes,
-                reflection: payload.reflection ?? null,
                 streaming: false,
               });
             } else if (ev === 'error') {

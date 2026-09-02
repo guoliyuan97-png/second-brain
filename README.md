@@ -64,8 +64,6 @@
 
 回答中的 `[n]` 编号是系统编的:后处理会把**材料里不存在的编号直接摘除**,引用必须能落回到具体文档的具体小节。引用出处默认折叠,点角标自动展开定位。
 
-在这之上还有一层**反思自检**:回答生成后,再用一次 LLM 调用把每个 `[n]` 论断与所引 chunk **原文**逐条对照,揪出"张冠李戴"(内容出自片段 B 却标了 A)与"无中生有"(片段里根本没有该内容);发现不自洽就把问题清单带回去重答一次,界面标注"已修正重答"。自检通过时零噪音,`QA_REFLECT=off` 可关。
-
 ### 整理台:裁决权在人
 
 LLM 提的所有新标签、发现的所有冲突、暂存的产出、评估集的校准建议——全部进收件箱等用户决定,系统永远不自动"修正"知识。每次裁决留审计记录。
@@ -93,7 +91,7 @@ LLM 提的所有新标签、发现的所有冲突、暂存的产出、评估集�
 
 - 检索 / 找文档 / 整理台:**零 token**(全部本机 SQLite);
 - 入库打标+摘要:每篇一次调用(分钱级),终身复用;
-- 问答:一次流式归纳 + 一次引用自检(2~4 分钱;自检发现不自洽才多一次重答);研究:约十次调用;
+- 问答:一次流式归纳(1~2 分钱);研究:约十次调用;
 - 向量:本地 onnx 推理,零 API 成本。
 
 ## 快速开始
@@ -116,29 +114,6 @@ npm run dist       # 打包 exe(数据目录与打包隔离,升级不丢数据)
 ```
 
 `.env` 需配置 `LLM_API_KEY`(DeepSeek)。向量默认本地推理,模型首次构建时自动经 hf-mirror 下载;也可配 `EMBEDDING_API_KEY` 切换 API 嵌入,或 `EMBEDDING_PROVIDER=off` 关闭语义路。
-
-**接入 MCP(把知识库挂进 Claude Desktop 等任意 MCP 客户端)**
-
-```bash
-npm run build:server   # 生成 build/mcp.mjs(stdio 服务,随 exe 一起分发)
-node scripts/test-mcp.mjs quick   # 协议冒烟测试(quick 不花 token;full 追加问答+研究实测)
-```
-
-客户端配置示例(Claude Desktop `claude_desktop_config.json`):
-
-```json
-{
-  "mcpServers": {
-    "second-brain": {
-      "command": "node",
-      "args": ["E:\\second-brain\\build\\mcp.mjs"],
-      "env": { "SB_DATA_DIR": "E:\\second-brain-data" }
-    }
-  }
-}
-```
-
-4 个只读工具:`search_knowledge`(混合检索,零 token)· `ask_knowledge`(带编号引用的归纳问答)· `run_research`(深度研究,1~3 分钟,阶段进度走 progress 通知)· `list_topics`(主题结论页列表/全文)。服务与桌面端可同时运行(WAL 并行读写);数据目录必须用 `SB_DATA_DIR` 显式指定,否则会落到项目内空库。
 
 ## 技术栈
 
